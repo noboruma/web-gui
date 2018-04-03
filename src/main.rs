@@ -18,9 +18,12 @@ fn resources(file: std::path::PathBuf) -> Option<rocket::response::NamedFile>
     .ok()
 }
 
+static SERVER_RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 fn main() {
 
-    let rocket  = rocket::ignite().mount("/", routes![index, resources]);
+    let rocket = rocket::ignite().mount("/", routes![index, resources]);
+
     let mut url = String::from("http://");
     {
         let config  = &rocket.config();
@@ -29,13 +32,9 @@ fn main() {
         url.push_str(&String::from(config.port.to_string()));
     }
 
-    let server_child = std::thread::spawn(move ||
-                                          {
-                                              rocket.launch();
-                                          });
-
     let client_child = std::thread::spawn(move ||
                                           {
+                                              std::thread::park();
                                               let title       = "self-hosting Web App example";
                                               let size        = (800, 600);
                                               let resizable   = true;
@@ -52,6 +51,15 @@ fn main() {
                                                             frontend_cb,
                                                             userdata);
                                           });
+
+    let server_child = std::thread::spawn(||
+                                          {
+                                              rocket.attach(rocket::fairing::AdHoc::on_launch(|_| {
+                                                  SERVER_RUNNING.store(true, std::sync::atomic::Ordering::Relaxed);
+                                              })).launch();
+                                          });
+    while !SERVER_RUNNING.load(std::sync::atomic::Ordering::Relaxed) {};
+    client_child.thread().unpark();
 
     client_child.join().unwrap();
     server_child.join().unwrap();
