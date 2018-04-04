@@ -1,5 +1,5 @@
 [package]
-name = "hello-rocket"
+name = "web-gui"
 version = "0.1.0"
 authors = ["Thomas Legris <legris.thomas@gmail.com>"]
 
@@ -7,3 +7,4 @@ authors = ["Thomas Legris <legris.thomas@gmail.com>"]
 rocket = "0.3.6"
 rocket_codegen = "0.3.6"
 web-view = "0.1.3"
+crossbeam = "0.3.2"

@@ -3,6 +3,7 @@
 
 extern crate rocket;
 extern crate web_view;
+extern crate crossbeam;
 
 #[get("/")]
 fn index() -> rocket::response::content::Html<String>
@@ -18,8 +19,6 @@ fn resources(file: std::path::PathBuf) -> Option<rocket::response::NamedFile>
     .ok()
 }
 
-static SERVER_RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
 fn main() {
 
     let rocket = rocket::ignite().mount("/", routes![index, resources]);
@@ -32,35 +31,34 @@ fn main() {
         url.push_str(&String::from(config.port.to_string()));
     }
 
-    let client_child = std::thread::spawn(move ||
-                                          {
-                                              std::thread::park();
-                                              let title       = "self-hosting Web App example";
-                                              let size        = (800, 600);
-                                              let resizable   = true;
-                                              let debug       = true;
-                                              let init_cb     = move |_webview| {};
-                                              let frontend_cb = move |_webview: &mut _, _arg: &_, _userdata: &mut _| {};
-                                              let userdata    = ();
-                                              web_view::run(title,
-                                                            &url,
-                                                            Some(size),
-                                                            resizable,
-                                                            debug,
-                                                            init_cb,
-                                                            frontend_cb,
-                                                            userdata);
-                                          });
+    crossbeam::scope(|scope| {
 
-    let server_child = std::thread::spawn(||
-                                          {
-                                              rocket.attach(rocket::fairing::AdHoc::on_launch(|_| {
-                                                  SERVER_RUNNING.store(true, std::sync::atomic::Ordering::Relaxed);
-                                              })).launch();
-                                          });
-    while !SERVER_RUNNING.load(std::sync::atomic::Ordering::Relaxed) {};
-    client_child.thread().unpark();
+        scope.spawn(move ||
+                    {
+                        rocket.launch();
+                    });
 
-    client_child.join().unwrap();
-    server_child.join().unwrap();
+        //TODO: remove when launch Fairing will not require + 'static
+        // https://github.com/SergioBenitez/Rocket/issues/522
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        scope.spawn(move ||
+        {
+            let title       = "self-hosting Web App example";
+            let size        = (800, 600);
+            let resizable   = true;
+            let debug       = true;
+            let init_cb     = move |_webview| {};
+            let frontend_cb = move |_webview: &mut _, _arg: &_, _userdata: &mut _| {};
+            let userdata    = ();
+            web_view::run(title,
+                          &url,
+                          Some(size),
+                          resizable,
+                          debug,
+                          init_cb,
+                          frontend_cb,
+                          userdata);
+        });
+    });
 }
