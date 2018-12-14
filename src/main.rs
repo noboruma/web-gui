@@ -5,18 +5,23 @@ extern crate rocket;
 extern crate web_view;
 extern crate crossbeam;
 
+macro_rules! get_resources {
+    () => (concat!(env!("CARGO_MANIFEST_DIR"), "/resources/"));
+    ($x:expr) => (concat!(concat!(env!("CARGO_MANIFEST_DIR"), "/resources/"), $x));
+}
+
 #[get("/")]
 fn index() -> rocket::response::content::Html<String>
 {
-    rocket::response::content::Html(String::from(include_str!("../resources/html/index.html")))
+    rocket::response::content::Html(String::from(include_str!(get_resources!("html/index.html"))))
 }
 
 #[get("/resources/<file..>")]
 fn resources(file: std::path::PathBuf) -> Option<rocket::response::NamedFile>
 {
-    rocket::response::NamedFile::open(std::path::Path::new("resources/")
+    rocket::response::NamedFile::open(std::path::Path::new(get_resources!())
                                       .join(file))
-    .ok()
+        .ok()
 }
 
 fn main() {
@@ -44,6 +49,7 @@ fn main() {
 
         scope.spawn(move ||
         {
+            let url         = url;
             let title       = "self-hosting Web App example";
             let size        = (800, 600);
             let resizable   = true;
